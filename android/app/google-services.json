@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "976091888225",
+    "project_id": "test1-472911",
+    "storage_bucket": "test1-472911.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:976091888225:android:2447f835647383938ec820",
+        "android_client_info": {
+          "package_name": "com.example.memo_gift"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALS7hhFOvHS0F3IbCppMQ67BzWtPCLl9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
