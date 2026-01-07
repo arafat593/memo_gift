@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-
-import '../../controllers/auth_controller.dart';
-import '../../controllers/memo_gift_controller.dart';
+import 'package:provider/provider.dart';
+import '../../controllers/auth_provider.dart';
+import '../../controllers/memo_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/memo_card.dart';
 import '../details/memo_detail_screen.dart';
 import './add_memo_screen.dart';
 
 class HomeScreen extends StatelessWidget {
-  final AuthController _authController = Get.find<AuthController>();
-  final MemoGiftController _memoController = Get.put(MemoGiftController());
-
-  HomeScreen({super.key});
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,87 +17,114 @@ class HomeScreen extends StatelessWidget {
         title: const Text('MemoGift'),
         actions: [
           IconButton(
-            onPressed: () => _authController.logout(),
+            onPressed: () =>
+                Provider.of<AuthProvider>(context, listen: false).logout(),
             icon: const Icon(Icons.logout),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildUserProfile(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Your Memories',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Obx(() {
-              if (_memoController.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              if (_memoController.memoGifts.isEmpty) {
-                return _buildEmptyState();
-              }
-
-              return ListView.separated(
-                padding: const EdgeInsets.all(24),
-                itemCount: _memoController.memoGifts.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  final gift = _memoController.memoGifts[index];
-                  return MemoCard(
-                    gift: gift,
-                    onTap: () => Get.to(() => MemoDetailScreen(memoGift: gift)),
-                    onDelete: () {
-                      Get.dialog(
-                        AlertDialog(
-                          title: const Text('Delete Memory?'),
-                          content: const Text(
-                            'Are you sure you want to delete this memory forever?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Get.back(),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                _memoController.deleteMemoGift(gift.id);
-                                Get.back();
-                              },
-                              child: const Text(
-                                'Delete',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
+      body: Consumer<MemoProvider>(
+        builder: (context, memoProvider, _) {
+          return Column(
+            children: [
+              Consumer<AuthProvider>(
+                builder: (context, authProvider, _) {
+                  return _buildUserProfile(authProvider);
                 },
-              );
-            }),
-          ),
-        ],
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Your Memories',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Builder(
+                  builder: (context) {
+                    if (memoProvider.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (memoProvider.memoGifts.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: memoProvider.memoGifts.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 16),
+                      itemBuilder: (context, index) {
+                        final gift = memoProvider.memoGifts[index];
+                        return MemoCard(
+                          gift: gift,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  MemoDetailScreen(memoGift: gift),
+                            ),
+                          ),
+                          onDelete: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Delete Memory?'),
+                                content: const Text(
+                                  'Are you sure you want to delete this memory forever?',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      memoProvider.deleteMemoGift(
+                                        gift.id,
+                                        context,
+                                      );
+                                      Navigator.pop(context);
+                                    },
+                                    child: const Text(
+                                      'Delete',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Get.to(() => AddMemoScreen()),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AddMemoScreen()),
+        ),
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  Widget _buildUserProfile() {
+  Widget _buildUserProfile(AuthProvider authProvider) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       padding: const EdgeInsets.all(20),
@@ -136,9 +159,7 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _authController.user.value?.email
-                          ?.split('@')[0]
-                          .toUpperCase() ??
+                  authProvider.user?.email?.split('@')[0].toUpperCase() ??
                       'GUEST',
                   style: const TextStyle(
                     color: Colors.white,
@@ -147,7 +168,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  _authController.user.value?.email ?? 'guest@memogift.com',
+                  authProvider.user?.email ?? 'guest@memogift.com',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
                     fontSize: 13,
