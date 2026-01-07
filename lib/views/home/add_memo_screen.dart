@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-import '../../controllers/memo_gift_controller.dart';
+import '../../controllers/auth_provider.dart';
+import '../../controllers/memo_provider.dart';
 import '../../models/memo_gift_model.dart';
 
 class AddMemoScreen extends StatefulWidget {
@@ -15,95 +16,119 @@ class AddMemoScreen extends StatefulWidget {
 }
 
 class _AddMemoScreenState extends State<AddMemoScreen> {
-  final MemoGiftController _memoController = Get.find<MemoGiftController>();
-
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
 
-  final Rx<File?> _pickedImage = Rx<File?>(null);
-  final RxBool _isSaving = false.obs;
+  File? _pickedImage;
+  bool _isSaving = false;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
         imageQuality: 50,
+        maxWidth: 1920,
+        maxHeight: 1920,
       );
       if (image != null) {
-        _pickedImage.value = File(image.path);
+        setState(() {
+          _pickedImage = File(image.path);
+        });
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
     }
   }
 
   void _showImageSourceDialog() {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select Image Source',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
-              onTap: () {
-                Get.back();
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () {
-                Get.back();
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-          ],
-        ),
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Image Source',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   Future<void> _saveMemory() async {
     if (_titleController.text.isEmpty || _descriptionController.text.isEmpty) {
-      Get.snackbar('Missing Info', 'Title and description are required');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title and description are required')),
+      );
       return;
     }
 
     try {
-      _isSaving.value = true;
+      setState(() {
+        _isSaving = true;
+      });
       debugPrint('🔄 Starting to save memory...');
 
       String imagePath = '';
 
-      if (_pickedImage.value != null) {
+      if (_pickedImage != null) {
         final appDir = await getApplicationDocumentsDirectory();
 
         final String fileName =
-            '${DateTime.now().millisecondsSinceEpoch}${path.extension(_pickedImage.value!.path)}';
+            '${DateTime.now().millisecondsSinceEpoch}${path.extension(_pickedImage!.path)}';
 
         final String savedPath = path.join(appDir.path, fileName);
 
-        final File localImage = await _pickedImage.value!.copy(savedPath);
+        final File localImage = await _pickedImage!.copy(savedPath);
         imagePath = localImage.path;
         debugPrint('📸 Image saved to: $imagePath');
       }
 
+      final userId =
+          Provider.of<AuthProvider>(context, listen: false).user?.uid ?? '';
+
       final newGift = MemoGift(
         id: '',
+        userId: userId,
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         price: double.tryParse(_priceController.text) ?? 0.0,
@@ -112,20 +137,36 @@ class _AddMemoScreenState extends State<AddMemoScreen> {
       );
 
       debugPrint('💾 Adding gift to Firestore...');
-      await _memoController.addMemoGift(newGift);
+      if (mounted) {
+        await Provider.of<MemoProvider>(
+          context,
+          listen: false,
+        ).addMemoGift(newGift);
+      }
       debugPrint('✅ Gift added successfully!');
 
-      _isSaving.value = false;
-      debugPrint('⬅️ Navigating back...');
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        debugPrint('⬅️ Navigating back...');
+        Navigator.pop(context);
+        debugPrint('🎉 Navigation complete!');
 
-      Get.back();
-      debugPrint('🎉 Navigation complete!');
-
-      Get.snackbar('Success', 'Memory saved successfully');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Memory saved successfully')),
+        );
+      }
     } catch (e) {
       debugPrint('❌ Error saving memory: $e');
-      _isSaving.value = false;
-      Get.snackbar('Error', 'Failed to save memory: ${e.toString()}');
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save memory: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -142,41 +183,39 @@ class _AddMemoScreenState extends State<AddMemoScreen> {
               children: [
                 GestureDetector(
                   onTap: _showImageSourceDialog,
-                  child: Obx(
-                    () => Container(
-                      height: 220,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.grey[300]!, width: 1),
-                        image: _pickedImage.value != null
-                            ? DecorationImage(
-                                image: FileImage(_pickedImage.value!),
-                                fit: BoxFit.cover,
-                              )
-                            : null,
-                      ),
-                      child: _pickedImage.value == null
-                          ? Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(
-                                  Icons.add_a_photo_rounded,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'Tap to add photo',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                  child: Container(
+                    height: 220,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[300]!, width: 1),
+                      image: _pickedImage != null
+                          ? DecorationImage(
+                              image: FileImage(_pickedImage!),
+                              fit: BoxFit.cover,
                             )
                           : null,
                     ),
+                    child: _pickedImage == null
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(
+                                Icons.add_a_photo_rounded,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'Tap to add photo',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          )
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -224,16 +263,13 @@ class _AddMemoScreenState extends State<AddMemoScreen> {
             ),
           ),
 
-          Obx(
-            () => _isSaving.value
-                ? Container(
-                    color: Colors.black.withOpacity(0.5),
-                    child: const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                  )
-                : const SizedBox(),
-          ),
+          if (_isSaving)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
         ],
       ),
     );

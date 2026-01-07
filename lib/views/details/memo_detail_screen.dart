@@ -24,7 +24,11 @@ class MemoDetailScreen extends StatelessWidget {
             flexibleSpace: FlexibleSpaceBar(
               background: memoGift.imageUrl.isNotEmpty
                   ? (isLocalFile
-                        ? Image.file(File(memoGift.imageUrl), fit: BoxFit.cover)
+                        ? Image.file(
+                            File(memoGift.imageUrl),
+                            fit: BoxFit.cover,
+                            cacheWidth: 1200,
+                          )
                         : Image.network(
                             memoGift.imageUrl,
                             fit: BoxFit.cover,
