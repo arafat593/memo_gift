@@ -22,42 +22,31 @@ class MemoCard extends StatelessWidget {
     final bool isLocalFile =
         gift.imageUrl.isNotEmpty && !gift.imageUrl.startsWith('http');
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primaryColor.withOpacity(0.06),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 20),
+      elevation: 2, // Low elevation to reduce shadow cost
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias, // Optimized clipping
+      child: InkWell(
+        onTap: onTap,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Stack(
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
-                  ),
+                SizedBox(
+                  height: 220,
+                  width: double.infinity,
                   child: gift.imageUrl.isNotEmpty
                       ? (isLocalFile
                             ? Image.file(
                                 File(gift.imageUrl),
-                                height: 220,
-                                width: double.infinity,
                                 fit: BoxFit.cover,
+                                cacheWidth: 600, // Reduced cache width further
+                                gaplessPlayback: true, // Prevent flickering
                               )
                             : Image.network(
                                 gift.imageUrl,
-                                height: 220,
-                                width: double.infinity,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     _buildPlaceholder(),
@@ -92,18 +81,22 @@ class MemoCard extends StatelessWidget {
                   Positioned(
                     top: 16,
                     left: 16,
-                    child: GestureDetector(
-                      onTap: onDelete,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.delete_rounded,
-                          color: Colors.white,
-                          size: 20,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onDelete,
+                        borderRadius: BorderRadius.circular(30),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withOpacity(0.9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.delete_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
